@@ -8,7 +8,7 @@ This project focuses on real-time **drone flight monitoring** and **restricted a
 
 ## Proposed Technologies  
 - **Protocols:** MQTT for real-time data transmission  
-- **Devices:** Raspberry Pi, GPS module, Barometer  
+- **Devices:** Raspberry Pi, GPS module (UART), Barometer (I²C)  
 - **Programming Languages:** Python for data processing and cloud communication  
 - **Data Storage & Processing:** Cloud database for flight history and analysis  
 
