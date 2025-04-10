@@ -1,5 +1,5 @@
-# Drone-Flight-Monitoring-and-Restricted-Zone-Detection
-A drone flight monitoring system for Austria that detects restricted zone violations using GPS and barometer data, processes alerts on a Raspberry Pi, and stores flight history in Azure IoT Hub for real-time visualization.
+# AeroGuard AT
+A drone monitoring system for Austria that tracks flight locations using GPS and barometer data, with geofencing to detect restricted zones. It stores data in a MongoDB database and provides information on the drone's position, altitude, and zone status.
 
 
 
