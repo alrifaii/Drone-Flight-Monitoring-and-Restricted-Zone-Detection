@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vienna Location Observer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Vienna Location Observer</h1>
+    
+        <div class="controls">
+            <button onclick="togglePath()">Toggle Path</button>
+        </div>
+    
+        <div class="map-container">
+            <div id="info-panel">
+                <h3>Location Information</h3>
+                <div id="location-info">Click on a marker or line to view details</div>
+            </div>
+    
+            <div id="map"></div>
+        </div>
+    
+        <div class="bottom-container">
+            <div id="location-history">
+                <div id="slider-container">
+                    <label for="locationCount">Number of Locations to Display:</label>
+                    <input type="range" id="locationCount" min="1" max="50" value="10" step="1">
+                    <span id="sliderValue">10</span>
+                </div>
+        
+                <h3>Recent Locations</h3>
+                <div id="history-list"></div>
+            </div>
+
+            <div id="chart-container">
+                <h3>Altitude Chart</h3>
+                <canvas id="heightChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+    <script>
+        const map = L.map('map').setView([48.2082, 16.3738], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        const markers = {};
+        let pathLines = []; // Store all path lines
+        let showPath = true;
+        let chart = null;
+        let chartData = {
+            labels: [],
+            datasets: [{
+                label: 'Height',
+                data: [],
+                borderColor: 'rgba(75, 192, 192, 1)',
+                tension: 0.1
+            }]
+        };
+
+        function saveScrollPosition() {
+            const scrollY = window.scrollY;
+            return scrollY;
+        }
+
+        function restoreScrollPosition(scrollY) {
+            window.scrollTo(0, scrollY);
+        }
+
+        function updateLocations() {
+            const scrollY = saveScrollPosition(); // Save the current scroll position
+
+            const locationCount = parseInt(document.getElementById('locationCount').value); // Get the slider value
+
+            fetch('/get_locations')
+                .then(response => response.json())
+                .then(data => {
+                    const recentLocations = data.slice(-locationCount); // Get only the last `locationCount` locations
+
+                    // Remove markers that are no longer in the recent locations
+                    Object.keys(markers).forEach(id => {
+                        if (!recentLocations.some(loc => loc.id == id)) {
+                            map.removeLayer(markers[id]);
+                            delete markers[id];
+                        }
+                    });
+
+                    // Add new markers for recent locations
+                    recentLocations.forEach(location => {
+                        if (!markers[location.id]) {
+                            markers[location.id] = L.marker([location.lat, location.lng], {
+                                riseOnHover: true
+                            }).addTo(map)
+                                .bindPopup(createPopupContent(location))
+                                .on('click', () => showLocationInfo(location));
+                        }
+                    });
+
+                    updatePathLine(recentLocations); // Update the path line with recent locations
+                    updateHistoryList(recentLocations); // Update the history list
+                    updateChart(recentLocations); // Update the chart
+
+                    restoreScrollPosition(scrollY); // Restore the scroll position
+                });
+        }
+
+        document.getElementById('locationCount').addEventListener('input', function() {
+            document.getElementById('sliderValue').innerText = this.value;
+            updateLocations();
+        });
+
+        updateLocations();
+
+        function updatePathLine(locations) {
+            // Remove all existing path lines from the map
+            pathLines.forEach(line => map.removeLayer(line));
+            pathLines = []; // Clear the array
+
+            if (locations.length >= 2 && showPath) {
+                const segments = [];
+                let currentSegment = {
+                    points: [[locations[0].lat, locations[0].lng]],
+                    color: getColorForPermission(locations[0].permission)
+                };
+
+                for (let i = 1; i < locations.length; i++) {
+                    const currentColor = getColorForPermission(locations[i].permission);
+
+                    if (currentColor === currentSegment.color) {
+                        currentSegment.points.push([locations[i].lat, locations[i].lng]);
+                    } else {
+                        segments.push(currentSegment);
+                        currentSegment = {
+                            points: [[locations[i - 1].lat, locations[i - 1].lng], [locations[i].lat, locations[i].lng]],
+                            color: currentColor
+                        };
+                    }
+                }
+                segments.push(currentSegment);
+
+                segments.forEach(segment => {
+                    const line = L.polyline(segment.points, {
+                        color: segment.color,
+                        weight: 4,
+                        opacity: 0.7,
+                        lineJoin: 'round'
+                    }).addTo(map);
+                    pathLines.push(line); // Store the line in the array
+                });
+            }
+        }
+
+        function getColorForPermission(permission) {
+            if (permission === '✅ Flying allowed') {
+                return '#2ecc71';
+            } else if (permission === '🚫 Flying not allowed') {
+                return '#e74c3c';
+            } else {
+                return '#f39c12';
+            }
+        }
+
+        window.togglePath = function() {
+            showPath = !showPath;
+            updateLocations();
+        };
+
+        function createPopupContent(location) {
+            return `
+            <strong>Location #${location.id}</strong><br>
+            <b>Time:</b> ${location.time}<br>
+            <b>Altitude:</b> ${location.Height}<br>
+            <b>Coordinates:</b> ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}<br>
+            <b>Permission:</b> ${location.permission}<br>
+            <b>Address:</b> ${location.address}<br>
+            `;
+        }
+
+        function showLocationInfo(location) {
+            document.getElementById('location-info').innerHTML = `
+                <h4>Location #${location.id}</h4>
+                <h4>Address: #${location.address}</h4>
+                <h4>Altitude: ${location.Height}m</h4>
+                <div>${location.InfoHtml}</div>
+            `;
+        }
+
+        function updateHistoryList(locations) {
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            locations.slice().reverse().forEach(location => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <span class="location-id">#${location.id}</span>
+                    <span class="location-time">${location.time}</span>
+
+                    <span class="location-permission">${location.permission}</span>
+                    <button onclick="flyToLocation(${location.lat}, ${location.lng})">View</button>
+                `;
+                historyList.appendChild(item);
+            });
+        }
+
+        window.flyToLocation = function(lat, lng) {
+            map.flyTo([lat, lng], 15);
+        };
+
+        function updateChart(recentLocations) {
+            if (!chart) {
+                const ctx = document.getElementById('heightChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        animation: false, // Disable animation for smoother updates
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'ID'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Altitude'
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Update the chart data with only the recent locations
+                chart.data.labels = recentLocations.map(location => location.id);
+                chart.data.datasets[0].data = recentLocations.map(location => location.Height);
+                chart.update(); // Refresh the chart
+            }
+        }
+
+        setInterval(updateLocations, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+[
+    {
+        "lat": 48.20615215859918,
+        "lng": 16.378274615094416,
+        "time": "15:44:25",
+        "permission": "\u2705 Flying allowed",
+        "InfoHtml": "<div class=\"info\"><div class=\"features\"><div class=\"info-feature\"><table class=\"table\"><tr><td class=\"minwidth\"><div class=\"legend\"><i class=\"ti ti-map-pin-filled\"></i></div></td><td><div class=\"name\"><b>Coordinates</b><br>48.157866, 16.460646</div><div class=\"tag\" style=\"display: none;\"></div></td><td><button class=\"button red small\" style=\"display: none;\">Alert</button></td><td><button class=\"button small\" style=\"display: none;\">Request takeoff</button></td><td><button class=\"button red small\" style=\"display: none;\">Terminate</button></td></tr></table></div></div><div class=\"close\"><i class=\"ti ti-x\"></i></div></div>",
+        "Height": 194,
+        "id": 1
+    }]
